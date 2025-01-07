@@ -64,7 +64,7 @@ def create_sequences(values, time_steps):
     return np.stack(output)
 
 
-def plot_results(*true_pred_pairs: tuple[pd.Series, pd.Series]):
+def plot_results(*true_pred_pairs: tuple[pd.Series, pd.Series], idx):
     n = len(true_pred_pairs)
     fig, axs = plt.subplots(n, 1, figsize=(12, 3 * n), sharex=True)
     if not isinstance(axs, (list | np.ndarray)):
@@ -75,6 +75,7 @@ def plot_results(*true_pred_pairs: tuple[pd.Series, pd.Series]):
         ax.set_title(f"{true.name} detection")
         ax.legend()
     fig.show()
+    fig.savefig(f"dane{idx}.png")
 
 
 def print_results(
