@@ -1,175 +1,69 @@
-import os
 import numpy as np
-import scipy.stats as SS
-from matplotlib import pyplot as plt
-from pandas import DataFrame
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import NearestNeighbors
+import pandas as pd
 
 
 class KNN:
-    def __init__(
-            self,
-            n_neighbors=5,
-            scaling=False,
-            p_value=0.999,
-    ):
-        """
-        Inicjalizacja detektora anomalii opartego na KNN.
-
-        Parameters:
-        -----------
-        n_neighbors : int, default=5
-            Liczba sąsiadów do uwzględnienia
-        scaling : bool, default=False
-            Czy standaryzować dane
-        p_value : float, default=0.999
-            Poziom ufności dla progu wykrywania anomalii
-        """
+    def __init__(self, n_neighbors: int = 5):
         self.n_neighbors = n_neighbors
-        self.scaling = scaling
-        self.p_value = p_value
-        self.knn = NearestNeighbors(n_neighbors=n_neighbors)
+        self.X_train = None
+        self.y_train = None
+        self.scores = None
+        self.ucl = None
 
-    def _calculate_distances(self, x):
-        """Obliczanie odległości do k-najbliższych sąsiadów"""
-        distances, _ = self.knn.kneighbors(x)
-        # Bierzemy średnią odległość do k sąsiadów
-        return np.mean(distances, axis=1)
+    def _validate_data(self, X: pd.DataFrame) -> np.ndarray:
+        if isinstance(X, pd.DataFrame):
+            X = X.select_dtypes(include=[np.number]).values
+        return X.astype(float)
 
-    def _calculate_ucl(self, distances):
-        """Obliczanie górnej granicy kontrolnej (UCL)"""
-        linspace = np.linspace(0, max(distances) * 2, 10000)
-        # Zakładamy rozkład chi-kwadrat dla odległości
-        c_alpha = linspace[SS.chi2.cdf(linspace, df=self.n_features) < self.p_value][-1]
-        self.ucl = c_alpha
+    def _compute_distances(self, X_train: np.ndarray, X_test: np.ndarray) -> np.ndarray:
 
-    def plot_scores(self, scores=None, ucl=None, save_fig=False, fig_name="KNN"):
-        """
-        Wizualizacja wyników detekcji anomalii.
+        distances = np.zeros((X_test.shape[0], X_train.shape[0]))
 
-        Parameters:
-        -----------
-        scores : pandas.DataFrame, default=None
-            Wyniki (odległości) do najbliższych sąsiadów
-        ucl : float, default=None
-            Górna granica kontrolna
-        save_fig : bool, default=False
-            Czy zapisać wykres
-        fig_name : str, default='KNN'
-            Nazwa pliku wykresu
-        """
-        if scores is None:
-            scores = self.scores
-        if ucl is None:
-            ucl = self.ucl
+        for i in range(X_test.shape[0]):
+            diff = X_train - X_test[i]
+            distances[i] = np.sqrt(np.sum(diff * diff, axis=1))
 
-        plt.figure(figsize=(12, 4))
-        plt.plot(scores, label="KNN distance score")
-        plt.grid(True)
-        plt.axhline(ucl, zorder=10, color="r", label="UCL")
-        plt.ylim(0, 3 * max(scores.min().values, ucl))
-        plt.xlim(scores.index.values[0], scores.index.values[-1])
-        plt.title("KNN Distance Score Chart")
-        plt.xlabel("Time")
-        plt.ylabel("Distance Score")
-        plt.legend()
-        plt.tight_layout()
+        return distances
 
-        if save_fig:
-            self._save(name=fig_name)
+    def fit(self, X_train: pd.DataFrame, y_train: pd.DataFrame):
+        self.X_train = X_train
+        self.y_train = y_train
 
-    @staticmethod
-    def _save(name="", fmt="png"):
-        """Zapisywanie wykresu do pliku"""
-        pwd = os.getcwd()
-        iPath = pwd + "/pictures/"
-        if not os.path.exists(iPath):
-            os.mkdir(iPath)
-        os.chdir(iPath)
-        plt.savefig(f"{name}.{fmt}", fmt="png", dpi=150, bbox_inches="tight")
-        os.chdir(pwd)
+        X_train_valid = self._validate_data(X_train)
+        train_distances = self._compute_distances(X_train_valid, X_train_valid)
 
-    def fit(self, x):
-        """
-        Trenowanie detektora na danych treningowych.
+        sorted_distances = np.sort(train_distances, axis=1)
+        train_scores = np.mean(sorted_distances[:, 1:self.n_neighbors + 1], axis=1)
 
-        Parameters:
-        -----------
-        x : pandas.DataFrame
-            Zbiór treningowy
-        """
-        x = x.copy()
+        self.scores = pd.DataFrame(
+            train_scores,
+            index=X_train.index,
+            columns=['KNN_score']
+        )
 
-        # Usuwanie stałych kolumn
-        initial_cols_number = len(x.columns)
-        x = x.loc[:, (x != x.iloc[0]).any()]
-        self._feature_names_in = x.columns
-        if initial_cols_number > len(x.columns):
-            print("Usunięto stałe kolumny")
+        self.ucl = np.percentile(train_scores, 95)
 
-        self.n_features = len(x.columns)
+        return self
 
-        if self.scaling:
-            self.scaler = StandardScaler()
-            self.scaler.fit(x)
-            x_ = self.scaler.transform(x)
-        else:
-            x_ = x.values
+    def predict(self, X_test: pd.DataFrame):
+        if self.X_train is None:
+            raise ValueError("Model must be fitted before making predictions")
 
-        # Trenowanie modelu KNN
-        self.knn.fit(x_)
+        X_test_valid = self._validate_data(X_test)
+        X_train_valid = self._validate_data(self.X_train)
 
-        # Obliczanie odległości dla danych treningowych
-        distances = self._calculate_distances(x_)
+        # Oblicz odległości między punktami testowymi a treningowymi
+        distances = self._compute_distances(X_train_valid, X_test_valid)
 
-        # Obliczanie progu UCL
-        self._calculate_ucl(distances)
+        # Oblicz scores dla danych testowych
+        sorted_distances = np.sort(distances, axis=1)
+        test_scores = np.mean(sorted_distances[:, :self.n_neighbors], axis=1)
 
-    def predict(self, x, plot_fig=True, save_fig=False, fig_name="KNN", window_size=1):
-        """
-        Wykrywanie anomalii w nowych danych.
+        # Zapisz scores w formacie DataFrame
+        self.scores = pd.DataFrame(
+            test_scores,
+            index=X_test.index,
+            columns=['KNN_score']
+        )
 
-        Parameters:
-        -----------
-        x : pandas.DataFrame
-            Dane do analizy
-        plot_fig : bool, default=True
-            Czy generować wykres
-        save_fig : bool, default=False
-            Czy zapisać wykres
-        fig_name : str, default='KNN'
-            Nazwa pliku wykresu
-        window_size : int, default=1
-            Rozmiar okna do wygładzania wyników
-
-        Returns:
-        --------
-        pandas.DataFrame
-            Wyniki detekcji anomalii (True/False)
-        """
-        x = x.copy()
-        x = x.loc[:, self._feature_names_in]
-
-        if self.scaling:
-            x_ = self.scaler.transform(x)
-        else:
-            x_ = x.values
-
-        # Obliczanie odległości
-        distances = self._calculate_distances(x_)
-
-        # Wygładzanie wyników oknem przesuwnym
-        self.scores = DataFrame(
-            distances,
-            index=x.index,
-            columns=["KNN_score"]
-        ).rolling(window_size).median()
-
-        # Wykrywanie anomalii
-        anomalies = self.scores > self.ucl
-
-        if plot_fig:
-            self.plot_scores(save_fig=save_fig, fig_name=fig_name)
-
-        return anomalies
+        return self

@@ -74,7 +74,7 @@ def plot_results(*true_pred_pairs: tuple[pd.Series, pd.Series], idx):
         ax.plot(pred, label="Predicted", marker="x", markersize=5)
         ax.set_title(f"{true.name} detection")
         ax.legend()
-    fig.show()
+    # fig.show()
     fig.savefig(f"dane{idx}.png")
 
 

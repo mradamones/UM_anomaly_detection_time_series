@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 Xy_traintest_list = load_preprocess_skab()
 
-model_knn = KNN(scaling=True, n_neighbors=10)
+model_knn = KNN(n_neighbors=10)
 model_svm = SVM(scaling=True)
 
 # create structure for all models
@@ -28,16 +28,16 @@ for i, model in enumerate(models):
     true_outlier, true_cp = [], []
 
     for X_train, X_test, y_train, y_test in Xy_traintest_list:
-        model.fit(X_train)
+        if isinstance(model, KNN):
+            model.fit(X_train, y_train)
+        elif isinstance(model, SVM):
+            model.fit(X_train)
 
         model.predict(
-            X_test,
-            window_size=5,
-            plot_fig=False,
+            X_test
         )
 
         if isinstance(model, KNN):
-            # Użycie `ucl` w przypadku KNN
             prediction = pd.Series(
                 (model.scores.loc[:, "KNN_score"].values > model.ucl).astype(int),
                 index=X_test.index,
