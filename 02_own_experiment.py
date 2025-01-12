@@ -43,7 +43,7 @@ for i, model in enumerate(models):
                 index=X_test.index,
             ).fillna(0)
         elif isinstance(model, SVM):
-            # W przypadku SVM wartość decyzji < 0 oznacza anomalię
+            #wartosc decyzji < 0 oznacza anomalie
             prediction = pd.Series(
                 (model.scores.loc[:, "SVM_score"].values < 0).astype(int),
                 index=X_test.index,

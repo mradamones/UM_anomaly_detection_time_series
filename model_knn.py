@@ -10,13 +10,14 @@ class KNN:
         self.scores = None
         self.ucl = None
 
-    def _validate_data(self, X: pd.DataFrame) -> np.ndarray:
+    @staticmethod
+    def _validate_data(X: pd.DataFrame) -> np.ndarray:
         if isinstance(X, pd.DataFrame):
             X = X.select_dtypes(include=[np.number]).values
         return X.astype(float)
 
-    def _compute_distances(self, X_train: np.ndarray, X_test: np.ndarray) -> np.ndarray:
-
+    @staticmethod
+    def _compute_distances(X_train: np.ndarray, X_test: np.ndarray) -> np.ndarray:
         distances = np.zeros((X_test.shape[0], X_train.shape[0]))
 
         for i in range(X_test.shape[0]):
@@ -46,20 +47,14 @@ class KNN:
         return self
 
     def predict(self, X_test: pd.DataFrame):
-        if self.X_train is None:
-            raise ValueError("Model must be fitted before making predictions")
-
         X_test_valid = self._validate_data(X_test)
         X_train_valid = self._validate_data(self.X_train)
 
-        # Oblicz odległości między punktami testowymi a treningowymi
         distances = self._compute_distances(X_train_valid, X_test_valid)
 
-        # Oblicz scores dla danych testowych
         sorted_distances = np.sort(distances, axis=1)
         test_scores = np.mean(sorted_distances[:, :self.n_neighbors], axis=1)
 
-        # Zapisz scores w formacie DataFrame
         self.scores = pd.DataFrame(
             test_scores,
             index=X_test.index,
