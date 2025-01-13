@@ -100,19 +100,19 @@ for i, features in enumerate(X):
 print("KNN: Balanced Accuracy:", np.mean(knn_res), "F1:", np.mean(knn_f1), "FAR:", np.mean(knn_far), "MAR:", np.mean(knn_mar))
 print("SVC: Balanced Accuracy:", np.mean(svc_res), "F1:", np.mean(svc_f1), "FAR:", np.mean(svc_far), "MAR:", np.mean(svc_mar))
 
-print("Explaining KNN model with Dalex")
-explainer_knn = dx.Explainer(model_knn, X_test, y_test, label="KNN Classifier")
-feature_importance_knn = explainer_knn.model_parts()
-feature_importance_knn.plot(title="Feature Importance - KNN")
-
-print("Explaining SVC model with Dalex")
-explainer_svc = dx.Explainer(model_dtc, X_test, y_test, label="SVC Classifier")
-feature_importance_svc = explainer_svc.model_parts()
-feature_importance_svc.plot(title="Feature Importance - SVC")
-
-sample = X_test.iloc[0:1]
-local_explanation_knn = explainer_knn.predict_parts(sample)
-local_explanation_knn.plot(title="Local Explanation - KNN")
-
-local_explanation_svc = explainer_svc.predict_parts(sample)
-local_explanation_svc.plot(title="Local Explanation - SVC")
+# print("Explaining KNN model with Dalex")
+# explainer_knn = dx.Explainer(model_knn, X_test, y_test, label="KNN Classifier")
+# feature_importance_knn = explainer_knn.model_parts()
+# feature_importance_knn.plot(title="Feature Importance - KNN")
+#
+# print("Explaining SVC model with Dalex")
+# explainer_svc = dx.Explainer(model_dtc, X_test, y_test, label="SVC Classifier")
+# feature_importance_svc = explainer_svc.model_parts()
+# feature_importance_svc.plot(title="Feature Importance - SVC")
+#
+# sample = X_test.iloc[0:1]
+# local_explanation_knn = explainer_knn.predict_parts(sample)
+# local_explanation_knn.plot(title="Local Explanation - KNN")
+#
+# local_explanation_svc = explainer_svc.predict_parts(sample)
+# local_explanation_svc.plot(title="Local Explanation - SVC")
