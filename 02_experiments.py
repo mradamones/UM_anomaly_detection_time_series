@@ -1,6 +1,6 @@
 import os
-
 import numpy as np
+import dalex as dx
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
@@ -8,7 +8,6 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import balanced_accuracy_score, f1_score, confusion_matrix
 
 all_files = []
-
 for root, _, files in os.walk('./SKAB/'):
     for file in files:
         if file.endswith(".csv"):
@@ -93,7 +92,22 @@ for i, features in enumerate(X):
     knn_mar.append(np.mean(knn_mar_fold))
     svc_mar.append(np.mean(svc_mar_fold))
 
-print("KNN: Balanced Accuracy:", np.mean(knn_res), "F1:", np.mean(knn_f1), "FAR:", np.mean(knn_far), "MAR:",
-      np.mean(knn_mar))
-print("SVC: Balanced Accuracy:", np.mean(svc_res), "F1:", np.mean(svc_f1), "FAR:", np.mean(svc_far), "MAR:",
-      np.mean(svc_mar))
+print("KNN: Balanced Accuracy:", np.mean(knn_res), "F1:", np.mean(knn_f1), "FAR:", np.mean(knn_far), "MAR:", np.mean(knn_mar))
+print("SVC: Balanced Accuracy:", np.mean(svc_res), "F1:", np.mean(svc_f1), "FAR:", np.mean(svc_far), "MAR:", np.mean(svc_mar))
+
+print("Explaining KNN model with Dalex")
+explainer_knn = dx.Explainer(model_knn, X_test, y_test, label="KNN Classifier")
+feature_importance_knn = explainer_knn.model_parts()
+feature_importance_knn.plot(title="Feature Importance - KNN")
+
+print("Explaining SVC model with Dalex")
+explainer_svc = dx.Explainer(model_svc, X_test, y_test, label="SVC Classifier")
+feature_importance_svc = explainer_svc.model_parts()
+feature_importance_svc.plot(title="Feature Importance - SVC")
+
+sample = X_test.iloc[0:1]
+local_explanation_knn = explainer_knn.predict_parts(sample)
+local_explanation_knn.plot(title="Local Explanation - KNN")
+
+local_explanation_svc = explainer_svc.predict_parts(sample)
+local_explanation_svc.plot(title="Local Explanation - SVC")
