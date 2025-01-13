@@ -5,7 +5,11 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import balanced_accuracy_score, f1_score, confusion_matrix
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 
 all_files = []
 for root, _, files in os.walk('./SKAB/'):
@@ -25,6 +29,7 @@ X = []
 y = []
 model_knn = KNeighborsClassifier()
 model_svc = SVC(probability=True)
+model_dtc = DecisionTreeClassifier()
 knn_res = []
 svc_res = []
 knn_f1 = []
@@ -55,10 +60,10 @@ for i, features in enumerate(X):
         y_train, y_test = target.iloc[train_idx], target.iloc[test_idx]
 
         model_knn.fit(X_train, y_train)
-        model_svc.fit(X_train, y_train)
+        model_dtc.fit(X_train, y_train)
 
         y_pred_knn = model_knn.predict(X_test)
-        y_pred_svc = model_svc.predict(X_test)
+        y_pred_svc = model_dtc.predict(X_test)
 
         results_knn = balanced_accuracy_score(y_test, y_pred_knn)
         results_svc = balanced_accuracy_score(y_test, y_pred_svc)
@@ -101,7 +106,7 @@ feature_importance_knn = explainer_knn.model_parts()
 feature_importance_knn.plot(title="Feature Importance - KNN")
 
 print("Explaining SVC model with Dalex")
-explainer_svc = dx.Explainer(model_svc, X_test, y_test, label="SVC Classifier")
+explainer_svc = dx.Explainer(model_dtc, X_test, y_test, label="SVC Classifier")
 feature_importance_svc = explainer_svc.model_parts()
 feature_importance_svc.plot(title="Feature Importance - SVC")
 
