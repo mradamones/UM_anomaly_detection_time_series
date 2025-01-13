@@ -24,7 +24,7 @@ anomaly_free_df = pd.read_csv("./SKAB/anomaly-free/anomaly-free.csv", index_col=
 X = []
 y = []
 model_knn = KNeighborsClassifier()
-model_svc = SVC()
+model_svc = SVC(probability=True)
 knn_res = []
 svc_res = []
 knn_f1 = []
