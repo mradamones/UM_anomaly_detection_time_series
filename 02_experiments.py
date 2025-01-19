@@ -1,8 +1,7 @@
 import os
 import numpy as np
-import dalex as dx
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, RepeatedStratifiedKFold
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
@@ -43,7 +42,7 @@ for df in list_of_df:
     y.append(df[["anomaly", "changepoint"]])
     X.append(df.drop(["anomaly", "changepoint"], axis=1))
 
-skf = StratifiedKFold(n_splits=5)
+skf = RepeatedStratifiedKFold(n_splits=5, n_repeats=10)
 for i, features in enumerate(X):
     target = y[i]["anomaly"]
     knn_fold_res = []

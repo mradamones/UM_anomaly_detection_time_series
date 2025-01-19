@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import dalex as dx
 from sklearn.metrics import balanced_accuracy_score
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, RepeatedStratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
@@ -33,7 +33,7 @@ for df in list_of_df:
 model_knn = KNeighborsClassifier()
 model_dtc = DecisionTreeClassifier()
 model_svc = SVC()
-skf = StratifiedKFold(n_splits=5)
+skf = RepeatedStratifiedKFold(n_splits=5, n_repeats=10)
 
 results = {
     "anomaly": {
@@ -52,9 +52,12 @@ results = {
 
 labels = ["anomaly", "changepoint"]
 clf = {"knn": model_knn, "dtc": model_dtc, "svc": model_svc}
-#change for another algorithm
 model = clf["knn"]
-# for model_name, model in clf.items():
+
+# Zmienne do zapisu wyników
+all_results = []
+
+# Proces przetwarzania danych i modeli
 for i, features in enumerate(X):
     for label in labels:
         target = np.array(y[i][label])
@@ -93,14 +96,28 @@ for i, features in enumerate(X):
         fold_results["avg_train_accuracy"] = np.mean(fold_results["train_accuracy"])
         fold_results["avg_test_accuracy"] = np.mean(fold_results["test_accuracy"])
         results[label]["overfitting_results"].append(fold_results)
+
+        # Zapis do all_results
+        all_results.append({
+            "file": all_files[i],
+            "label": label,
+            "avg_train_accuracy": fold_results["avg_train_accuracy"],
+            "avg_test_accuracy": fold_results["avg_test_accuracy"],
+            "bias_results": bias_per_class
+        })
+
         print(str(i) + label)
 
+# Analiza ważności cech
 average_importance = {}
 for label in labels:
     feature_importance_df = pd.concat(results[label]["feature_importance"])
     average_importance[label] = feature_importance_df.groupby("variable")["dropout_loss"].mean()
 
-# for model_name, model in clf.items():
+# Wyświetlanie wyników i zapis do pliku CSV
+output_path = "results_summary.csv"
+summary_data = []
+
 for label in labels:
     print(f"\nFeature Importance for {label} (average):")
     print(average_importance[label])
@@ -108,12 +125,17 @@ for label in labels:
     print(f"\nOverfitting Results for {label} (train/test accuracy):")
     for idx, res in enumerate(results[label]["overfitting_results"]):
         print(f"Model {idx}: Train Accuracy: {res['avg_train_accuracy']:.3f}, Test Accuracy: {res['avg_test_accuracy']:.3f}")
+        summary_data.append({
+            "label": label,
+            "model_id": idx,
+            "avg_train_accuracy": res["avg_train_accuracy"],
+            "avg_test_accuracy": res["avg_test_accuracy"]
+        })
 
     print(f"\nBias Analysis for {label}:")
     for idx, bias in enumerate(results[label]["bias_results"]):
         print(f"Model {idx}: {bias}")
 
-    # print(f"\nLocal Explanations for {model_name} - {label}:")
-    # for idx, res in enumerate(results[label]["overfitting_results"]):
-    #     print(f"Model {idx} - Local Explanation for Fold 1:")
-    #     print(res["local_explanations"][0])
+# Zapis do pliku
+pd.DataFrame(all_results).to_csv(output_path, index=False)
+print(f"\nWyniki zapisano do pliku {output_path}")
