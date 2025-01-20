@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import dalex as dx
 from sklearn.metrics import balanced_accuracy_score
-from sklearn.model_selection import StratifiedKFold, RepeatedStratifiedKFold
+from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
@@ -52,69 +52,66 @@ results = {
 
 labels = ["anomaly", "changepoint"]
 clf = {"knn": model_knn, "dtc": model_dtc, "svc": model_svc}
-model = clf["knn"]
+# model = clf["knn"]
 
-# Zmienne do zapisu wyników
 all_results = []
 
-# Proces przetwarzania danych i modeli
-for i, features in enumerate(X):
-    for label in labels:
-        target = np.array(y[i][label])
+for model_name, model in clf.items():
+    for i, features in enumerate(X):
+        for label in labels:
+            target = np.array(y[i][label])
 
-        fold_results = {"train_accuracy": [], "test_accuracy": [], "local_explanations": []}
+            fold_results = {"train_accuracy": [], "test_accuracy": [], "local_explanations": []}
 
-        for fold_num, (train_idx, test_idx) in enumerate(skf.split(features, target)):
-            X_train, X_test = features.iloc[train_idx], features.iloc[test_idx]
-            y_train, y_test = target[train_idx], target[test_idx]
+            for fold_num, (train_idx, test_idx) in enumerate(skf.split(features, target)):
+                X_train, X_test = features.iloc[train_idx], features.iloc[test_idx]
+                y_train, y_test = target[train_idx], target[test_idx]
 
-            model.fit(X_train, y_train)
+                model.fit(X_train, y_train)
 
-            train_preds = model.predict(X_train)
-            test_preds = model.predict(X_test)
-            train_accuracy = balanced_accuracy_score(y_train, train_preds)
-            test_accuracy = balanced_accuracy_score(y_test, test_preds)
+                train_preds = model.predict(X_train)
+                test_preds = model.predict(X_test)
+                train_accuracy = balanced_accuracy_score(y_train, train_preds)
+                test_accuracy = balanced_accuracy_score(y_test, test_preds)
 
-            fold_results["train_accuracy"].append(train_accuracy)
-            fold_results["test_accuracy"].append(test_accuracy)
+                fold_results["train_accuracy"].append(train_accuracy)
+                fold_results["test_accuracy"].append(test_accuracy)
 
-            explainer = dx.Explainer(model, X_train, y_train, label=f"{label} {i} fold {fold_num}", verbose=False)
-            importance = explainer.model_parts(type='difference')
-            results[label]["feature_importance"].append(importance.result)
+                explainer = dx.Explainer(model, X_train, y_train, label=f"{label} {i} fold {fold_num}", verbose=False)
+                importance = explainer.model_parts(type='difference')
+                results[label]["feature_importance"].append(importance.result)
 
-            local_explanation = explainer.predict_parts(X_test.iloc[0], type="break_down")
-            fold_results["local_explanations"].append(local_explanation.result)
+                local_explanation = explainer.predict_parts(X_test.iloc[0], type="break_down")
+                fold_results["local_explanations"].append(local_explanation.result)
 
-        bias_per_class = {}
-        for cls in np.unique(target):
-            class_indices = np.where(target == cls)[0]
-            class_preds = model.predict(features.iloc[class_indices])
-            class_accuracy = balanced_accuracy_score(target[class_indices], class_preds)
-            bias_per_class[cls] = class_accuracy
-        results[label]["bias_results"].append(bias_per_class)
+            bias_per_class = {}
+            for cls in np.unique(target):
+                class_indices = np.where(target == cls)[0]
+                class_preds = model.predict(features.iloc[class_indices])
+                class_accuracy = balanced_accuracy_score(target[class_indices], class_preds)
+                bias_per_class[cls] = class_accuracy
+            results[label]["bias_results"].append(bias_per_class)
 
-        fold_results["avg_train_accuracy"] = np.mean(fold_results["train_accuracy"])
-        fold_results["avg_test_accuracy"] = np.mean(fold_results["test_accuracy"])
-        results[label]["overfitting_results"].append(fold_results)
+            fold_results["avg_train_accuracy"] = np.mean(fold_results["train_accuracy"])
+            fold_results["avg_test_accuracy"] = np.mean(fold_results["test_accuracy"])
+            results[label]["overfitting_results"].append(fold_results)
 
-        # Zapis do all_results
-        all_results.append({
-            "file": all_files[i],
-            "label": label,
-            "avg_train_accuracy": fold_results["avg_train_accuracy"],
-            "avg_test_accuracy": fold_results["avg_test_accuracy"],
-            "bias_results": bias_per_class
-        })
+            all_results.append({
+                "file": all_files[i],
+                "label": label,
+                "classifier": model_name,
+                "avg_train_accuracy": fold_results["avg_train_accuracy"],
+                "avg_test_accuracy": fold_results["avg_test_accuracy"],
+                "bias_results": bias_per_class
+            })
 
-        print(str(i) + label)
+            print(f'{model_name}, file: {str(i)}, {label}')
 
-# Analiza ważności cech
 average_importance = {}
 for label in labels:
     feature_importance_df = pd.concat(results[label]["feature_importance"])
     average_importance[label] = feature_importance_df.groupby("variable")["dropout_loss"].mean()
 
-# Wyświetlanie wyników i zapis do pliku CSV
 output_path = "results_summary.csv"
 summary_data = []
 
@@ -136,6 +133,5 @@ for label in labels:
     for idx, bias in enumerate(results[label]["bias_results"]):
         print(f"Model {idx}: {bias}")
 
-# Zapis do pliku
 pd.DataFrame(all_results).to_csv(output_path, index=False)
 print(f"\nWyniki zapisano do pliku {output_path}")
