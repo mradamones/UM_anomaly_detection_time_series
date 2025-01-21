@@ -8,31 +8,16 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 import warnings
+from utils import init_experiment
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-all_files = []
-for root, _, files in os.walk('./SKAB/'):
-    for file in files:
-        if file.endswith(".csv"):
-            all_files.append(os.path.join(root, file))
-
-list_of_df = [
-    pd.read_csv(file, sep=";", index_col="datetime", parse_dates=True)
-    for file in all_files
-    if "anomaly-free" not in file
-]
-
-X = []
-y = []
-for df in list_of_df:
-    y.append(df[["anomaly", "changepoint"]])
-    X.append(df.drop(["anomaly", "changepoint"], axis=1))
+X, y = init_experiment()
 
 model_knn = KNeighborsClassifier()
 model_dtc = DecisionTreeClassifier()
-model_svc = SVC()
+# model_svc = SVC()
 skf = RepeatedStratifiedKFold(n_splits=5, n_repeats=10)
 
 results = {
@@ -40,21 +25,20 @@ results = {
         "feature_importance": [],
         "bias_results": [],
         "overfitting_results": [],
-        "local_analysis_results": [],
     },
     "changepoint": {
         "feature_importance": [],
         "bias_results": [],
         "overfitting_results": [],
-        "local_analysis_results": [],
     },
 }
 
 labels = ["anomaly", "changepoint"]
-clf = {"knn": model_knn, "dtc": model_dtc, "svc": model_svc}
-# model = clf["knn"]
+clf = {"knn": model_knn, "dtc": model_dtc}  # "svc": model_svc
 
-all_results = []
+feature_importance_data = []
+overfitting_data = []
+bias_data = []
 
 for model_name, model in clf.items():
     for i, features in enumerate(X):
@@ -78,8 +62,9 @@ for model_name, model in clf.items():
                 fold_results["test_accuracy"].append(test_accuracy)
 
                 explainer = dx.Explainer(model, X_train, y_train, label=f"{label} {i} fold {fold_num}", verbose=False)
-                importance = explainer.model_parts(type='difference')
-                results[label]["feature_importance"].append(importance.result)
+                if len(np.unique(y_train)) > 1:
+                    importance = explainer.model_parts(type='difference')
+                    results[label]["feature_importance"].append(importance.result)
 
                 local_explanation = explainer.predict_parts(X_test.iloc[0], type="break_down")
                 fold_results["local_explanations"].append(local_explanation.result)
@@ -96,42 +81,36 @@ for model_name, model in clf.items():
             fold_results["avg_test_accuracy"] = np.mean(fold_results["test_accuracy"])
             results[label]["overfitting_results"].append(fold_results)
 
-            all_results.append({
-                "file": all_files[i],
-                "label": label,
-                "classifier": model_name,
-                "avg_train_accuracy": fold_results["avg_train_accuracy"],
-                "avg_test_accuracy": fold_results["avg_test_accuracy"],
-                "bias_results": bias_per_class
-            })
+            feature_importance_df = pd.concat(results[label]["feature_importance"])
+            average_importance = feature_importance_df.groupby("variable")["dropout_loss"].mean()
 
-            print(f'{model_name}, file: {str(i)}, {label}')
+            for variable, importance in average_importance.items():
+                feature_importance_data.append({
+                    "label": label,
+                    "model": model_name,
+                    "variable": variable,
+                    "average_importance": importance
+                })
 
-average_importance = {}
-for label in labels:
-    feature_importance_df = pd.concat(results[label]["feature_importance"])
-    average_importance[label] = feature_importance_df.groupby("variable")["dropout_loss"].mean()
+            for res in results[label]["overfitting_results"]:
+                overfitting_data.append({
+                    "label": label,
+                    "model": model_name,
+                    "avg_train_accuracy": res["avg_train_accuracy"],
+                    "avg_test_accuracy": res["avg_test_accuracy"]
+                })
 
-output_path = "results_summary.csv"
-summary_data = []
+            for bias in results[label]["bias_results"]:
+                for cls, bias_val in bias.items():
+                    bias_data.append({
+                        "label": label,
+                        "model": model_name,
+                        "class": cls,
+                        "class_accuracy": bias_val
+                    })
+            print(f'{model_name} {label}, {i}')
 
-for label in labels:
-    print(f"\nFeature Importance for {label} (average):")
-    print(average_importance[label])
+pd.DataFrame(feature_importance_data).to_csv("feature_importance_results.csv", index=False)
+pd.DataFrame(overfitting_data).to_csv("overfitting_results.csv", index=False)
+pd.DataFrame(bias_data).to_csv("bias_results.csv", index=False)
 
-    print(f"\nOverfitting Results for {label} (train/test accuracy):")
-    for idx, res in enumerate(results[label]["overfitting_results"]):
-        print(f"Model {idx}: Train Accuracy: {res['avg_train_accuracy']:.3f}, Test Accuracy: {res['avg_test_accuracy']:.3f}")
-        summary_data.append({
-            "label": label,
-            "model_id": idx,
-            "avg_train_accuracy": res["avg_train_accuracy"],
-            "avg_test_accuracy": res["avg_test_accuracy"]
-        })
-
-    print(f"\nBias Analysis for {label}:")
-    for idx, bias in enumerate(results[label]["bias_results"]):
-        print(f"Model {idx}: {bias}")
-
-pd.DataFrame(all_results).to_csv(output_path, index=False)
-print(f"\nWyniki zapisano do pliku {output_path}")
