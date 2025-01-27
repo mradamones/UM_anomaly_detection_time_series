@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 
+
 def init_experiment():
     all_files = []
     for root, _, files in os.walk('./SKAB/'):
@@ -21,16 +22,18 @@ def init_experiment():
         X.append(df.drop(["anomaly", "changepoint"], axis=1))
     return X, y
 
+
 def avg_importance():
-    feature_importance_df = pd.read_csv("feature_importance_results.csv")
+    feature_importance_df = pd.read_csv("results/feature_importance_results.csv")
     averaged_feature_importance = feature_importance_df.groupby(['label', 'model', 'variable'])[
         'average_importance'].mean().reset_index()
     averaged_feature_importance['average_importance'] = averaged_feature_importance['average_importance'].round(3)
     print(averaged_feature_importance)
     averaged_feature_importance.to_csv("averaged_feature_importance_results.csv", index=False)
 
+
 def avg_overfitting():
-    overfitting_df = pd.read_csv("overfitting_results.csv")
+    overfitting_df = pd.read_csv("results/overfitting_results.csv")
     averaged_overfitting = overfitting_df.groupby(['label', 'model'])[
         ['avg_train_accuracy', 'avg_test_accuracy']].mean().reset_index()
     averaged_overfitting[['avg_train_accuracy', 'avg_test_accuracy']] = averaged_overfitting[
@@ -38,8 +41,9 @@ def avg_overfitting():
     print(averaged_overfitting)
     averaged_overfitting.to_csv("averaged_overfitting_results.csv", index=False)
 
+
 def avg_bias():
-    bias_df = pd.read_csv("bias_results.csv")
+    bias_df = pd.read_csv("results/bias_results.csv")
     averaged_bias = bias_df.groupby(['label', 'model', 'class'])['class_accuracy'].mean().reset_index()
     averaged_bias['class_accuracy'] = averaged_bias['class_accuracy'].round(3)
     print(averaged_bias)
